@@ -3,20 +3,16 @@
 namespace captainduck\EnderLevels;
 
 use pocketmine\event\player\PlayerDeathEvent;
-use pocketmine\event\entity\EntityDeathEvent;
+#use pocketmine\event\entity\EntityDeathEvent;
 use pocketmine\utils\Config;
-use pocketmine\utils\TextFormat;
 use pocketmine\event\Listener;
 use pocketmine\Player;
 use pocketmine\plugin\PluginBase;
-use pocketmine\Server;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\utils\TextFormat as C;
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
-use pocketmine\level\Position;
-use pocketmine\command\ConsoleCommandSender;
 use pocketmine\event\player\PlayerJoinEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 
@@ -26,6 +22,9 @@ class Main extends PluginBase implements Listener{
     ########################### IMPORTANT THINGS #################################
     ###########################################################################
 
+    /** @var Config */
+    private $stats;
+
     public function onEnable(){
         $this->getLogger()->info("EnderLevels by CaptainDuck now enabled!");
         $this->stats = new Config($this->getDataFolder() . "stats.yml", Config::YAML, array());
@@ -33,7 +32,11 @@ class Main extends PluginBase implements Listener{
         $this->getServer()->getPluginManager()->registerEvents($this, $this);
     }
 
-    public function onCommand(CommandSender $sender, Command $command, $label, array $args){
+    public function onCommand(CommandSender $sender, Command $command, $label, array $args): bool{
+        if(!$sender instanceof Player){
+            $sender->sendMessage("This command is only available ingame!");
+            return true;
+        }
         switch (strtolower($command->getName())) {
             case "stats":
             $sender->sendMessage(C::ITALIC. C::GRAY. "----------- ". C::WHITE. "Your Stats: ". C::GRAY. "-----------");
@@ -45,22 +48,20 @@ class Main extends PluginBase implements Listener{
             break;
 
             case "levelup":
-            $this->initializeLevel($sender);
+                $this->initializeLevel($sender);
             break;
-
             case "addexp":
-            if(isset($args[0]) && isset($args[1]) && is_numeric($args[1])){
-                $this->addExp($args[0], $args[1]);
-                return true;
-                break;
-            }
-
+                if(isset($args[0]) && isset($args[1]) && is_numeric($args[1])){
+                    $this->addExp($args[0], $args[1]);
+                    return true;
+                }
+            break;
             case "reduceexp":
             if(isset($args[0]) && is_numeric($args[0]) && isset($args[1])){
                 $this->reduceExp($args[0], $args[1]);
                 return true;
-                break;
             }
+            break;
 
             case "enchantshop":
             if($this->getLevel($sender) >= 20){
@@ -72,13 +73,14 @@ class Main extends PluginBase implements Listener{
                 break;
             }
         }
+        return false;
     }
 
     ###########################################################################
     ########################### IMPORTANT API #################################
     ###########################################################################
 
-    public function initializeLevel($player){
+    public function initializeLevel(Player $player){
         $exp = $this->getExp($player);
         $expn = $this->getExpNeededTLU($player);
         if($this->getLevel($player) == 30){
@@ -95,19 +97,19 @@ class Main extends PluginBase implements Listener{
         }
     }
 
-    public function levelUp($player){
+    public function levelUp(Player $player){
         $this->stats->setNested(strtolower($player->getName()).".lvl", $this->stats->getAll()[strtolower($player->getName())]["lvl"] + 1);
         $this->stats->save();
         $this->setNamedTag($player);
         $this->getServer()->broadcastMessage(C::ITALIC. $player->getName(). " is now level ". $this->getLevel($player). "!");
     }
 
-    public function setNamedTag($player){
+    public function setNamedTag(Player $player){
         $player->setDisplayName(C::ITALIC. C::DARK_GRAY. "[". C::GREEN. "Lvl". C::WHITE. "" . $this->getLevel($player) . C::DARK_GRAY. "] ". C::WHITE . $player->getName());
         $player->save();
     }
 
-    public function reduceExp($player, $exp){
+    public function reduceExp(Player $player, $exp){
         $this->stats->setNested(strtolower($player->getName()).".exp", $this->stats->getAll()[strtolower($player->getName())]["exp"] - $exp);
         $this->stats->save();
     }
@@ -116,7 +118,7 @@ class Main extends PluginBase implements Listener{
     ########################### ADD STATS API #################################
     ###########################################################################
 
-    public function addPlayer($player){
+    public function addPlayer(Player $player){
         $this->stats->setNested(strtolower($player->getName()).".lvl", "1");
         $this->stats->setNested(strtolower($player->getName()).".exp", "0");
         $this->stats->setNested(strtolower($player->getName()).".expneededtlu", "250");
@@ -125,22 +127,22 @@ class Main extends PluginBase implements Listener{
         $this->stats->save();
     }
 
-    public function addDeath($player){
+    public function addDeath(Player $player){
          $this->stats->setNested(strtolower($player->getName()).".deaths", $this->stats->getAll()[strtolower($player->getName())]["deaths"] + 1);
          $this->stats->save();
     }
 
-    public function addKill($player){
+    public function addKill(Player $player){
          $this->stats->setNested(strtolower($player->getName()).".kills", $this->stats->getAll()[strtolower($player->getName())]["kills"] + 1);
          $this->stats->save();
     }
 
-    public function addExp($player, $exp){
+    public function addExp(string $player, $exp){
         $this->stats->setNested(strtolower($player).".exp", $this->stats->getAll()[strtolower($player)]["exp"] + $exp);
         $this->stats->save();
     }
 
-    public function addExpNeededTLU($player, $exp){
+    public function addExpNeededTLU(Player $player, $exp){
         $this->stats->setNested(strtolower($player->getName()).".expneededtlu", $this->stats->getAll()[strtolower($player->getName())]["expneededtlu"] + $exp);
         $this->stats->save();
     }
@@ -149,19 +151,19 @@ class Main extends PluginBase implements Listener{
     ########################### GET STATS API #################################
     ###########################################################################
 
-    public function getDeaths($player){
+    public function getDeaths(Player $player){
         return $this->stats->getAll()[strtolower($player->getName())]["deaths"];
     }
-    public function getKills($player){
+    public function getKills(Player $player){
         return $this->stats->getAll()[strtolower($player->getName())]["kills"];
     }
-    public function getExp($player){
+    public function getExp(Player $player){
         return $this->stats->getAll()[strtolower($player->getName())]["exp"];
     }
-    public function getLevel($player){
+    public function getLevel(Player $player){
         return $this->stats->getAll()[strtolower($player->getName())]["lvl"];
     }
-    public function getExpNeededTLU($player){
+    public function getExpNeededTLU(Player $player){
         return $this->stats->getAll()[strtolower($player->getName())]["expneededtlu"];
     }
 
